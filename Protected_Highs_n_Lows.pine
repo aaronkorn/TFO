@@ -156,12 +156,23 @@ check_pb(pb p) =>
 check_pb(pb_from_high)
 check_pb(pb_from_low)
 
-if (high[ps] > track_high or na(track_high) or last_low_idx >= track_high_idx) and not na(ta.pivothigh(high, ps, ps)) and (use_valid_pbs ? pb_from_low.valid == true : true)
+if (high[ps] > track_high or na(track_high) or last_low_idx >= track_high_idx) and not na(ta.pivothigh(high, ps, ps))
     track_high := high[ps]
     track_high_idx := bar_index - ps
-if (low[ps] < track_low or na(track_low) or last_high_idx >= track_low_idx) and not na(ta.pivotlow(low, ps, ps)) and (use_valid_pbs ? pb_from_high.valid == true : true)
+if (low[ps] < track_low or na(track_low) or last_high_idx >= track_low_idx) and not na(ta.pivotlow(low, ps, ps))
     track_low := low[ps]
     track_low_idx := bar_index - ps
+
+var float track_valid_high = na
+var int track_valid_high_idx = na
+if (high[ps] > track_valid_high or na(track_valid_high) or last_low_idx >= track_valid_high_idx) and not na(ta.pivothigh(high, ps, ps)) and (use_valid_pbs ? pb_from_low.valid == true : true)
+    track_valid_high := high[ps]
+    track_valid_high_idx := bar_index - ps
+var float track_valid_low = na
+var int track_valid_low_idx = na
+if (low[ps] < track_valid_low or na(track_valid_low) or last_high_idx >= track_valid_low_idx) and not na(ta.pivotlow(low, ps, ps)) and (use_valid_pbs ? pb_from_high.valid == true : true)
+    track_valid_low := low[ps]
+    track_valid_low_idx := bar_index - ps
 
 bos_bear = false
 bos_bull = false
@@ -211,13 +222,21 @@ if ph.size() > 0
 
         clear_all()
 
-        if not na(track_low)
-            if show_phl
-                _phl := label.new(time[bar_index - track_low_idx], track_low, "▲", xloc = xloc.bar_time, style = label.style_label_up, textcolor = na, color = #ffffff00)
-
-            pl.unshift(track_low)
-            plt.unshift(time[bar_index - track_low_idx])
-            last_high := na
+        if use_valid_pbs and (pb_from_high.valid == false)
+            if not na(track_valid_low)
+                if show_phl
+                    _phl := label.new(time[bar_index - track_valid_low_idx], track_valid_low, "▲", xloc=xloc.bar_time, style=label.style_label_up, textcolor=na, color=#ffffff00)
+                pl.unshift(track_valid_low)
+                plt.unshift(time[bar_index - track_valid_low_idx])
+                last_high := na
+        else
+            if not na(track_low)
+                if show_phl
+                    _phl := label.new(time[bar_index - track_low_idx], track_low, "▲", xloc = xloc.bar_time, style = label.style_label_up, textcolor = na, color = #ffffff00)
+                
+                pl.unshift(track_low)
+                plt.unshift(time[bar_index - track_low_idx])
+                last_high := na
 
         dwgs.dwg_add(_label, _phl, _line, bull)
 
@@ -251,23 +270,37 @@ if pl.size() > 0
                 
         clear_all()
 
-        if not na(track_high)
-            if show_phl
-                _phl := label.new(time[bar_index - track_high_idx], track_high, "▼", xloc = xloc.bar_time, style = label.style_label_down, textcolor = na, color = #ffffff00)
-
-            ph.unshift(track_high)
-            pht.unshift(time[bar_index - track_high_idx])                
-            last_low := na
+        if use_valid_pbs and (pb_from_low.valid == false)
+            if not na(track_valid_high)
+                if show_phl
+                    _phl := label.new(time[bar_index - track_valid_high_idx], track_valid_high, "▼", xloc=xloc.bar_time, style=label.style_label_down, textcolor=na, color=#ffffff00)
+                ph.unshift(track_valid_high)
+                pht.unshift(time[bar_index - track_valid_high_idx])                
+                last_low := na
+        else
+            if not na(track_high)
+                if show_phl
+                    _phl := label.new(time[bar_index - track_high_idx], track_high, "▼", xloc = xloc.bar_time, style = label.style_label_down, textcolor = na, color = #ffffff00)
+                
+                ph.unshift(track_high)
+                pht.unshift(time[bar_index - track_high_idx])                
+                last_low := na
             
         dwgs.dwg_add(_label, _phl, _line, bull)
 
-if change[1]
-    if bos_bear[1] or mss_bear[1]
+if change
+    if bos_bear or mss_bear
         trail_price := track_high
         trail_color := ph_color
-    else if bos_bull[1] or mss_bull[1]
+        if use_valid_pbs and (pb_from_low.valid == false)
+            trail_price := track_valid_high
+            trail_color := ph_color
+    else if bos_bull or mss_bull
         trail_price := track_low
         trail_color := pl_color
+        if use_valid_pbs and (pb_from_high.valid == false)
+            trail_price :=  track_valid_low
+            trail_color :=  pl_color
         
     _bull = dwgs._bull.get(0)
     dwgs._label.get(0).set_textcolor(_bull ? bull_color : bear_color)
@@ -278,6 +311,15 @@ if change[1]
     snd._30.set_color(_bull ? bull_color : bear_color)
     snd._50.set_color(_bull ? bull_color : bear_color)
     snd._70.set_color(_bull ? bull_color : bear_color)
+
+var line pivot_high = na
+var line pivot_low = na
+if ph.size() > 0
+    pivot_high := line.new(pht.get(0), ph.get(0), time, ph.get(0), color=bull_color, xloc=xloc.bar_time, style=line.style_dashed, extend=extend.right)
+    line.delete(pivot_high[1])
+if pl.size() > 0
+    pivot_low := line.new(plt.get(0), pl.get(0), time, pl.get(0), color=bear_color, xloc=xloc.bar_time, style=line.style_dashed, extend=extend.right)
+    line.delete(pivot_low[1])
 
 barcolor(color_trend ? (bull ? bull_color : bear_color) : na)
 
